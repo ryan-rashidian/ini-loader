@@ -6,6 +6,8 @@
  * Simple to use INI file loader that allows:
  * - Key/value pairs using strings and numbers. (e.g. WINDOW_WIDTH = 720)
  * - Commented lines using `#`. (e.g. #this is a comment)
+ *
+ * Licensed under the MIT License. Copyright (c) 2026 Ryan A. Rashidian
  */
 
 #ifndef INI_H
