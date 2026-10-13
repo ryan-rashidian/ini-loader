@@ -294,7 +294,7 @@ IniData *ini_load(const char *file_path)
         return NULL;
     }
     if (!parse_file(source, data)) {
-        free(data);
+        ini_unload(data);
         free(source);
         return NULL;
     }
