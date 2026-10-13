@@ -29,6 +29,7 @@ bool ini_get(IniData *data, const char *key, double *value);
 // a new entry entry if the key does not already exist.
 bool ini_set(IniData *data, const char *key, double value);
 
+#define INI_IMPLEMENTATION
 #ifdef INI_IMPLEMENTATION
 #ifndef INI_IMPL_GUARD
 #define INI_IMPL_GUARD
@@ -364,8 +365,9 @@ bool ini_set(IniData *data, const char *key, double value)
             if (!grow_entries(data)) return false;
         }
 
-        temp_key.chars = (char *)malloc(sizeof(char) * temp_key.len);
+        temp_key.chars = (char *)malloc(sizeof(char) * (temp_key.len + 1));
         memcpy(temp_key.chars, key, temp_key.len);
+        temp_key.chars[temp_key.len] = '\0';
         e->key = temp_key;
         data->count++;
     }
