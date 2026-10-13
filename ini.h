@@ -152,7 +152,7 @@ static bool is_digit(char c)
 static bool is_whitespace(char c)
 {
     return c == ' '  || c == '\n' ||
-           c == '\t' || c == '\t';
+           c == '\t' || c == '\r';
 }
 
 static char *skip_whitespace(char *begin)
