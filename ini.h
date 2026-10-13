@@ -17,11 +17,19 @@
 
 typedef struct IniData IniData;
 
+// ini_load: Load an INI file into memory given a file_path, or initialize an
+// empty IniData struct by setting file_path to NULL.
 IniData *ini_load(const char *file_path);
+// ini_unload: Free all internal heap allocations and IniData pointer.
 void ini_unload(IniData *data);
+// ini_dump: Write the contents of a IniData struct to a given file_path.
+bool ini_dump(IniData *data, const char *file_path);
+// ini_get: Retrieve the value associated with the given key.
 bool ini_get(IniData *data, const char *key, double *value);
+// ini_set: Store a value in the entry associated with the given key. Create
+// a new entry entry if the key does not already exist.
+bool ini_set(IniData *data, const char *key, double value);
 
-#define INI_IMPLEMENTATION
 #ifdef INI_IMPLEMENTATION
 #ifndef INI_IMPL_GUARD
 #define INI_IMPL_GUARD
@@ -279,6 +287,8 @@ IniData *ini_load(const char *file_path)
     IniData *data = struct_init();
     if (data == NULL) return NULL;
 
+    if (file_path == NULL) return data;
+
     char *source = read_file(file_path);
     if (source == NULL) {
         free(data);
@@ -309,13 +319,59 @@ void ini_unload(IniData *data)
     free(data);
 }
 
+bool ini_dump(IniData *data, const char *file_path)
+{
+    if (data->count == 0) return false;
+
+    FILE *fp = fopen(file_path, "wb");
+    if (fp == NULL) return false;
+
+    for (size_t i = 0; i < data->capacity; i++) {
+        IniEntry *e = &data->entries[i];
+        if (e->key.chars == NULL) continue;
+
+        fprintf(fp, "%s = %g\n", e->key.chars, e->value);
+    }
+
+    fclose(fp);
+    return true;
+}
+
 bool ini_get(IniData *data, const char *key, double *value)
 {
+    if (data->count == 0) return false;
+
     IniKey temp_key = make_key(key);
     IniEntry *e = find_entry(data->entries, &temp_key, data->capacity);
     if (e->key.chars == NULL) return false;
 
     *value = e->value;
+
+    return true;
+}
+
+bool ini_set(IniData *data, const char *key, double value)
+{
+    if (data->count == 0) {
+        if (!grow_entries(data)) return false;
+    }
+
+    IniKey temp_key = make_key(key);
+    IniEntry *e = find_entry(data->entries, &temp_key, data->capacity);
+
+    // Insert new entry if empty, or else update existing entry
+    if (e->key.chars == NULL) {
+        if (data->capacity * LOAD_FACTOR < data->count + 1) {
+            if (!grow_entries(data)) return false;
+        }
+
+        temp_key.chars = (char *)malloc(sizeof(char) * temp_key.len);
+        memcpy(temp_key.chars, key, temp_key.len);
+        e->key = temp_key;
+        data->count++;
+    }
+
+    e->value = value;
 
     return true;
 }
