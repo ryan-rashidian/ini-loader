@@ -38,8 +38,7 @@ bool ini_set(IniData *data, const char *key, double value);
 #include <stdint.h>
 #include <string.h>
 
-#define LOAD_FACTOR 0.75
-#define GROW_CAPACITY(cap) ((cap) < 8 ? 8 : (cap) * 2)
+#define INI_MAX_LOAD_FACTOR 0.75
 
 typedef struct {
     uint32_t hash;
@@ -122,7 +121,7 @@ static IniEntry *find_entry(IniEntry *entries, IniKey *key, size_t capacity)
 
 static bool grow_entries(IniData *data)
 {
-    size_t new_cap = GROW_CAPACITY(data->capacity);
+    size_t new_cap = data->capacity < 8 ? 8 : data->capacity * 2;
     size_t new_size = sizeof(IniEntry) * new_cap;
     IniEntry *entries = (IniEntry *)realloc(data->entries, new_size);
     if (entries == NULL) return false;
@@ -223,7 +222,7 @@ static char *parse_value(double *value, char *start)
 
 static char *parse_entry(char *start, IniData *data)
 {
-    if (data->capacity * LOAD_FACTOR < data->count + 1) {
+    if (data->capacity * INI_MAX_LOAD_FACTOR < data->count + 1) {
         if (!grow_entries(data)) return NULL;
     }
 
@@ -361,7 +360,7 @@ bool ini_set(IniData *data, const char *key, double value)
 
     // Insert new entry if empty
     if (e->key.chars == NULL) {
-        if (data->capacity * LOAD_FACTOR < data->count + 1) {
+        if (data->capacity * INI_MAX_LOAD_FACTOR < data->count + 1) {
             if (!grow_entries(data)) return false;
         }
 
