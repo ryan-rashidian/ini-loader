@@ -13,7 +13,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 typedef struct IniData IniData;
 
@@ -36,6 +35,7 @@ bool ini_set(IniData *data, const char *key, double value);
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #define LOAD_FACTOR 0.75
@@ -359,7 +359,7 @@ bool ini_set(IniData *data, const char *key, double value)
     IniKey temp_key = make_key(key);
     IniEntry *e = find_entry(data->entries, &temp_key, data->capacity);
 
-    // Insert new entry if empty, or else update existing entry
+    // Insert new entry if empty
     if (e->key.chars == NULL) {
         if (data->capacity * LOAD_FACTOR < data->count + 1) {
             if (!grow_entries(data)) return false;
