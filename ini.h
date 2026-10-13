@@ -21,6 +21,7 @@ IniData *ini_load(const char *file_path);
 void ini_unload(IniData *data);
 bool ini_get(IniData *data, const char *key, double *value);
 
+#define INI_IMPLEMENTATION
 #ifdef INI_IMPLEMENTATION
 #ifndef INI_IMPL_GUARD
 #define INI_IMPL_GUARD
@@ -280,10 +281,11 @@ IniData *ini_load(const char *file_path)
 
     char *source = read_file(file_path);
     if (source == NULL) {
-        free(source);
+        free(data);
         return NULL;
     }
     if (!parse_file(source, data)) {
+        free(data);
         free(source);
         return NULL;
     }
