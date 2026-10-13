@@ -299,7 +299,7 @@ void ini_unload(IniData *data)
     if (data == NULL) return;
 
     if (data->entries != NULL) {
-        for (size_t i = 0; i < data->count; i++) {
+        for (size_t i = 0; i < data->capacity; i++) {
             IniEntry *e = &data->entries[i];
             if (e->key.chars != NULL) free(e->key.chars);
         }
