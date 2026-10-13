@@ -267,7 +267,7 @@ static bool parse_file(char *source, IniData *data)
         }
     }
 
-    return true;
+    return data->count > 0 ? true : false;
 }
 
 static IniData *struct_init(void)
