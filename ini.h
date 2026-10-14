@@ -28,7 +28,7 @@ bool ini_dump(IniData *data, const char *file_path);
 // ini_get: Retrieve the value associated with the given key.
 bool ini_get(IniData *data, const char *key, double *value);
 // ini_set: Store a value in the entry associated with the given key. Create
-// a new entry entry if the key does not already exist.
+// a new entry if the key does not already exist.
 bool ini_set(IniData *data, const char *key, double value);
 
 #ifdef INI_IMPLEMENTATION
@@ -48,7 +48,8 @@ typedef struct {
     char *chars;
 } IniKey;
 
-typedef struct {
+typedef struct IniEntry {
+    struct IniEntry *next;
     IniKey key;
     double value;
 } IniEntry;
@@ -56,7 +57,9 @@ typedef struct {
 struct IniData {
     size_t count;
     size_t capacity;
-    IniEntry *entries;
+    IniEntry *table;
+    IniEntry *head;
+    IniEntry *tail;
 };
 
 static char *read_file(const char *file_path)
@@ -106,12 +109,12 @@ static bool match_keys(IniKey *key1, IniKey *key2)
            memcmp(key1->chars, key2->chars, key1->len) == 0;
 }
 
-static IniEntry *find_entry(IniEntry *entries, IniKey *key, size_t capacity)
+static IniEntry *find_entry(IniEntry *table, IniKey *key, size_t capacity)
 {
     uint32_t index = key->hash & (capacity - 1);
 
     for (;;) {
-        IniEntry *e = &entries[index];
+        IniEntry *e = &table[index];
 
         if (e->key.chars != NULL) {
             if (match_keys(&e->key, key)) return e;
@@ -121,29 +124,39 @@ static IniEntry *find_entry(IniEntry *entries, IniKey *key, size_t capacity)
     }
 }
 
-static bool grow_entries(IniData *data)
+static bool grow_table(IniData *data)
 {
     size_t new_cap = data->capacity < 8 ? 8 : data->capacity * 2;
     size_t new_size = sizeof(IniEntry) * new_cap;
-    IniEntry *entries = (IniEntry *)realloc(data->entries, new_size);
-    if (entries == NULL) return false;
+    IniEntry *table = (IniEntry *)realloc(data->table, new_size);
+    if (table == NULL) return false;
 
-    for (size_t i = 0; i < new_cap; i++) entries[i].key.chars = NULL;
+    for (size_t i = 0; i < new_cap; i++) table[i].key.chars = NULL;
 
     for (size_t i = 0; i < data->capacity; i++) {
-        IniEntry *e = &data->entries[i];
+        IniEntry *e = &data->table[i];
         if (e->key.chars == NULL) continue;
 
-        IniEntry *dest = find_entry(entries, &e->key, new_cap);
+        IniEntry *dest = find_entry(table, &e->key, new_cap);
         dest->key = e->key;
         dest->value = e->value;
     }
 
-    if (data->entries != NULL) free(data->entries);
-    data->entries = entries;
+    if (data->table != NULL) free(data->table);
+    data->table = table;
     data->capacity = new_cap;
 
     return true;
+}
+
+static void add_to_queue(IniData *data, IniEntry *entry)
+{
+    if (data->head == NULL) {
+        data->head = entry;
+        data->tail = data->head;
+    }
+    data->tail->next = entry;
+    data->tail = entry;
 }
 
 static bool is_digit(char c)
@@ -225,7 +238,7 @@ static char *parse_value(double *value, char *start)
 static char *parse_entry(char *start, IniData *data)
 {
     if (data->capacity * INI_MAX_LOAD_FACTOR < data->count + 1) {
-        if (!grow_entries(data)) return NULL;
+        if (!grow_table(data)) return NULL;
     }
 
     IniKey key = (IniKey){ 0, 0, NULL };
@@ -249,9 +262,10 @@ static char *parse_entry(char *start, IniData *data)
     }
 
     // Insert newly parsed entry into table
-    IniEntry *e = find_entry(data->entries, &key, data->capacity);
+    IniEntry *e = find_entry(data->table, &key, data->capacity);
     e->key = key;
     e->value = value;
+    add_to_queue(data, e);
 
     data->count++;
     return curr;
@@ -278,7 +292,9 @@ static IniData *struct_init(void)
 
     data->count = 0;
     data->capacity = 0;
-    data->entries = NULL;
+    data->table = NULL;
+    data->head = NULL;
+    data->tail = NULL;
 
     return data;
 }
@@ -309,12 +325,12 @@ void ini_unload(IniData *data)
 {
     if (data == NULL) return;
 
-    if (data->entries != NULL) {
+    if (data->table != NULL) {
         for (size_t i = 0; i < data->capacity; i++) {
-            IniEntry *e = &data->entries[i];
+            IniEntry *e = &data->table[i];
             if (e->key.chars != NULL) free(e->key.chars);
         }
-        free(data->entries);
+        free(data->table);
     }
 
     free(data);
@@ -327,11 +343,10 @@ bool ini_dump(IniData *data, const char *file_path)
     FILE *fp = fopen(file_path, "wb");
     if (fp == NULL) return false;
 
-    for (size_t i = 0; i < data->capacity; i++) {
-        IniEntry *e = &data->entries[i];
-        if (e->key.chars == NULL) continue;
-
-        fprintf(fp, "%s = %g\n", e->key.chars, e->value);
+    IniEntry *curr = data->head;
+    while (curr != NULL) {
+        fprintf(fp, "%s = %g\n", curr->key.chars, curr->value);
+        curr = curr->next;
     }
 
     fclose(fp);
@@ -343,7 +358,7 @@ bool ini_get(IniData *data, const char *key, double *value)
     if (data->count == 0) return false;
 
     IniKey temp_key = make_key(key);
-    IniEntry *e = find_entry(data->entries, &temp_key, data->capacity);
+    IniEntry *e = find_entry(data->table, &temp_key, data->capacity);
     if (e->key.chars == NULL) return false;
 
     *value = e->value;
@@ -354,22 +369,23 @@ bool ini_get(IniData *data, const char *key, double *value)
 bool ini_set(IniData *data, const char *key, double value)
 {
     if (data->count == 0) {
-        if (!grow_entries(data)) return false;
+        if (!grow_table(data)) return false;
     }
 
     IniKey temp_key = make_key(key);
-    IniEntry *e = find_entry(data->entries, &temp_key, data->capacity);
+    IniEntry *e = find_entry(data->table, &temp_key, data->capacity);
 
     // Insert new entry if empty
     if (e->key.chars == NULL) {
         if (data->capacity * INI_MAX_LOAD_FACTOR < data->count + 1) {
-            if (!grow_entries(data)) return false;
+            if (!grow_table(data)) return false;
         }
 
         temp_key.chars = (char *)malloc(sizeof(char) * (temp_key.len + 1));
         memcpy(temp_key.chars, key, temp_key.len);
         temp_key.chars[temp_key.len] = '\0';
         e->key = temp_key;
+        add_to_queue(data, e);
         data->count++;
     }
 
