@@ -387,6 +387,7 @@ bool ini_dump(IniData *data, const char *file_path)
 
     IniEntry *curr = data->head;
     while (curr != NULL) {
+        fprintf(fp, "%s = %g\n", curr->key.chars, curr->value);
         curr = curr->next;
     }
 
