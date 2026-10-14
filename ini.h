@@ -124,11 +124,60 @@ static IniEntry *find_entry(IniEntry *table, IniKey *key, size_t capacity)
     }
 }
 
+static void add_to_queue(IniData *data, IniEntry *entry)
+{
+    entry->next = NULL;
+    if (data->head == NULL) {
+        data->head = entry;
+        data->tail = data->head;
+        return;
+    }
+    data->tail->next = entry;
+    data->tail = entry;
+}
+
+static void set_queue(IniData *data, IniEntry *e_old, IniEntry *e_new)
+{
+    // Set head position
+    if (e_old == data->head) {
+        e_new->next = data->head->next;
+        data->head = e_new;
+        return;
+    }
+
+    // Set tail position
+    if (e_old == data->tail) {
+        IniEntry *prev = NULL;
+        IniEntry *curr = data->head;
+        while (curr->next != NULL) {
+            prev = curr;
+            curr = curr->next;
+        }
+        if (prev != NULL) prev->next = e_new;
+        e_new->next = NULL;
+        data->tail = e_new;
+        return;
+    }
+
+    // Set inner position
+    IniEntry *prev = data->head;
+    IniEntry *curr = data->head->next;
+    while (curr != NULL) {
+        if (curr == e_old) {
+            e_new->next = curr->next;
+            prev->next = e_new;
+            return;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+}
+
 static bool grow_table(IniData *data)
 {
     size_t new_cap = data->capacity < 8 ? 8 : data->capacity * 2;
     size_t new_size = sizeof(IniEntry) * new_cap;
-    IniEntry *table = (IniEntry *)realloc(data->table, new_size);
+    IniEntry *table = (IniEntry *)malloc(new_size);
     if (table == NULL) return false;
 
     for (size_t i = 0; i < new_cap; i++) table[i].key.chars = NULL;
@@ -140,6 +189,7 @@ static bool grow_table(IniData *data)
         IniEntry *dest = find_entry(table, &e->key, new_cap);
         dest->key = e->key;
         dest->value = e->value;
+        set_queue(data, e, dest);
     }
 
     if (data->table != NULL) free(data->table);
@@ -147,17 +197,6 @@ static bool grow_table(IniData *data)
     data->capacity = new_cap;
 
     return true;
-}
-
-static void add_to_queue(IniData *data, IniEntry *entry)
-{
-    if (data->head == NULL) {
-        data->head = entry;
-        data->tail = data->head;
-        return;
-    }
-    data->tail->next = entry;
-    data->tail = entry;
 }
 
 static bool is_digit(char c)
@@ -346,7 +385,6 @@ bool ini_dump(IniData *data, const char *file_path)
 
     IniEntry *curr = data->head;
     while (curr != NULL) {
-        fprintf(fp, "%s = %g\n", curr->key.chars, curr->value);
         curr = curr->next;
     }
 
@@ -380,6 +418,7 @@ bool ini_set(IniData *data, const char *key, double value)
     if (e->key.chars == NULL) {
         if (data->capacity * INI_MAX_LOAD_FACTOR < data->count + 1) {
             if (!grow_table(data)) return false;
+            e = find_entry(data->table, &temp_key, data->capacity);
         }
 
         temp_key.chars = (char *)malloc(sizeof(char) * (temp_key.len + 1));
