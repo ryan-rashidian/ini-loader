@@ -31,6 +31,7 @@ bool ini_get(IniData *data, const char *key, double *value);
 // a new entry if the key does not already exist.
 bool ini_set(IniData *data, const char *key, double value);
 
+#define INI_IMPLEMENTATION
 #ifdef INI_IMPLEMENTATION
 #ifndef INI_IMPL_GUARD
 #define INI_IMPL_GUARD
@@ -154,6 +155,7 @@ static void add_to_queue(IniData *data, IniEntry *entry)
     if (data->head == NULL) {
         data->head = entry;
         data->tail = data->head;
+        return;
     }
     data->tail->next = entry;
     data->tail = entry;
