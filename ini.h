@@ -366,9 +366,11 @@ void ini_unload(IniData *data)
     if (data == NULL) return;
 
     if (data->table != NULL) {
-        for (size_t i = 0; i < data->capacity; i++) {
-            IniEntry *e = &data->table[i];
-            if (e->key.chars != NULL) free(e->key.chars);
+        IniEntry *curr = data->head;
+        while (curr != NULL) {
+            fprintf(stderr, "Freeing: %s\n", curr->key.chars);
+            if (curr->key.chars != NULL) free(curr->key.chars);
+            curr = curr->next;
         }
         free(data->table);
     }
